@@ -22,6 +22,8 @@ jobs:
             newname=$(basename $tool | sed 's/arm-linux-gnueabi/arm-kindlepw2-linux-gnueabi/')
             sudo ln -sf $tool /usr/local/bin/$newname
           done
+          sudo ln -sf /usr/bin/arm-linux-gnueabi-gcc /usr/local/bin/arm-kindlepw2-linux-gnueabi-cc
+          sudo ln -sf /usr/bin/arm-linux-gnueabi-gcc /usr/local/bin/arm-kindlepw2-linux-gnueabi-gcc-ar
 
       - name: Build
         run: make package
