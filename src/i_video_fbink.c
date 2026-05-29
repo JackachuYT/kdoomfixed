@@ -22,7 +22,10 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-int scale_factor = 2; // TODO: Scale based on res?
+float x_scale = 1.0f; // Horizontal scale factor
+float y_scale = 1.0f; // Vertical scale factor
+int game_width = 0;   // Rendered game width in pixels
+int game_height = 0;  // Rendered game height in pixels
 
 int frame = 0;
 
@@ -161,8 +164,17 @@ void I_InitGraphics(void) {
   uint32_t h = fbink_state.screen_height;
   printf("Resolution: %d*%d\n", w, h);
 
-  // Calculate scale factor
-  scale_factor = w / SCREENWIDTH;
+  // Calculate button area to reserve (matches i_input_evdev.c)
+  int btn_size = w / 6;
+  int btn_pad  = btn_size / 10;
+
+  // Game fills the screen above the buttons
+  game_width  = w;
+  game_height = h - btn_size - btn_pad;
+
+  // Calculate independent scale factors to fill the game area
+  x_scale = (float)game_width  / SCREENWIDTH;
+  y_scale = (float)game_height / SCREENHEIGHT;
 
   screen_scaled = (FBInkRect){
       .left = 0,
@@ -179,9 +191,7 @@ void I_InitGraphics(void) {
 
   // Allocate video buffer
   I_VideoBuffer = (byte *)Z_Malloc(SCREENWIDTH * SCREENHEIGHT, PU_STATIC, NULL);
-  I_VideoBuffer_FB = (byte *)Z_Malloc((SCREENWIDTH * scale_factor) *
-                                          (SCREENHEIGHT * scale_factor),
-                                      PU_STATIC, NULL);
+  I_VideoBuffer_FB = (byte *)Z_Malloc(game_width * game_height, PU_STATIC, NULL);
 
   // Finish up
   screenvisible = true;
@@ -223,24 +233,22 @@ void I_FinishUpdate(void) {
   // ret = fbink_cls(fbink_fd, &fbink_cfg, &screenLarger, false);
   // printf("fbink_cls: %d\n", ret);
 
-  // Scale video buffer by scale_factor
-  for (int i = 0; i < SCREENHEIGHT; i++) { // Iterate over pixels
-    for (int j = 0; j < SCREENWIDTH; j++) {
-      for (int k = 0; k < scale_factor; k++) {   // duplicate lines
-        for (int l = 0; l < scale_factor; l++) { // duplicate pixels
-          I_VideoBuffer_FB[(i * scale_factor + k) * SCREENWIDTH * scale_factor +
-                           (j * scale_factor + l)] =
-              I_VideoBuffer[i * SCREENWIDTH + j];
-        }
-      }
+  // Scale video buffer to fill game area (nearest-neighbor)
+  for (int y = 0; y < game_height; y++) {
+    int src_y = (int)((float)y / y_scale);
+    if (src_y >= SCREENHEIGHT) src_y = SCREENHEIGHT - 1;
+    for (int x = 0; x < game_width; x++) {
+      int src_x = (int)((float)x / x_scale);
+      if (src_x >= SCREENWIDTH) src_x = SCREENWIDTH - 1;
+      I_VideoBuffer_FB[y * game_width + x] = I_VideoBuffer[src_y * SCREENWIDTH + src_x];
     }
   }
 
   // Finally, print the buffer to the screen
   ret = fbink_print_raw_data(
-      fbink_fd, (unsigned char *)I_VideoBuffer_FB, SCREENWIDTH * scale_factor,
-      SCREENHEIGHT * scale_factor,
-      (SCREENWIDTH * scale_factor) * (SCREENHEIGHT * scale_factor), 0, 0,
+      fbink_fd, (unsigned char *)I_VideoBuffer_FB, game_width,
+      game_height,
+      game_width * game_height, 0, 0,
       &fbink_cfg);
 
 #ifdef DEBUG

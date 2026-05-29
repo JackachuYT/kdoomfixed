@@ -114,7 +114,7 @@ Button rightKey = {
 
 Button fireKey = {
     .key = KEY_FIRE,
-    .label = "FIRE",
+    .label = "A",
     .rect = {
         .left = 0,
         .top = 0,
@@ -125,7 +125,7 @@ Button fireKey = {
 
 Button enterKey = {
     .key = KEY_ENTER,
-    .label = "ENTER",
+    .label = "B",
     .rect = {
         .left = 0,
         .top = 0,
@@ -137,23 +137,19 @@ Button enterKey = {
 int BTN_SIZE = 100;
 int BTN_PAD = 10;
 
-Button *keys[] = {&upKey, &downKey, &leftKey, &rightKey, &fireKey, &enterKey, NULL};
+Button *keys[] = {&fireKey, &enterKey, &upKey, &downKey, &leftKey, &rightKey, NULL};
 
 __attribute__ ((weak)) int fbink_fd;
 __attribute__ ((weak)) FBInkConfig fbink_cfg;
 
 void CalcKeyPos(void) {
     printf("CalcKeyPos\n");
-    for (int i = 0; i < sizeof(keys); i++) {
-        if (!keys[i]) {
-            break; // It's joever
-        }
-
+    for (int i = 0; keys[i] != NULL; i++) {
         keys[i]->rect.width = BTN_SIZE;
         keys[i]->rect.height = BTN_SIZE;
 
         keys[i]->rect.left = (BTN_SIZE * i) + (BTN_PAD * i);
-        keys[i]->rect.top = (sch - BTN_SIZE) + BTN_PAD;
+        keys[i]->rect.top = (sch - BTN_SIZE) - BTN_PAD;
         printf("%d %d %d %d\n", keys[i]->rect.left, keys[i]->rect.top, keys[i]->rect.width, keys[i]->rect.height);
     }
 }
@@ -295,10 +291,7 @@ void I_GetEvent(void) {
                     }
                     printf("Touch %s: (%d, %d) \n", touch_ev.down ? "DOWN" : "UP", touch_ev.pos.x, touch_ev.pos.y);
 
-                    for (int i = 0; i < sizeof(keys); i++) {
-                        if (!keys[i]) {
-                            break; // It's joever
-                        }
+                    for (int i = 0; keys[i] != NULL; i++) {
 
                         Coord touch = touch_ev.pos;
 
