@@ -134,10 +134,21 @@ Button enterKey = {
     },
 };
 
+Button escKey = {
+    .key = KEY_ESCAPE,
+    .label = "ESC",
+    .rect = {
+        .left = 0,
+        .top = 0,
+        .width = 0,
+        .height = 0,
+    },
+};
+
 int BTN_SIZE = 100;
 int BTN_PAD = 10;
 
-Button *keys[] = {&fireKey, &enterKey, &upKey, &downKey, &leftKey, &rightKey, NULL};
+Button *keys[] = {&fireKey, &enterKey, &upKey, &downKey, &leftKey, &rightKey, &escKey, NULL};
 
 __attribute__ ((weak)) int fbink_fd;
 __attribute__ ((weak)) FBInkConfig fbink_cfg;
@@ -175,11 +186,10 @@ void PlaceKeys(void) {
             break; // It's joever
         }
         printf("Placing key %d\n", i);
-        fbink_ot_cfg.margins.top = keys[i]->rect.top + (BTN_SIZE / 2) - (fbink_ot_cfg.size_px / 2);
-        short int l = MAX(keys[i]->rect.left - ((strlen(keys[i]->label) * fbink_ot_cfg.size_px)), 0);
-        printf("l: %d\n", l);
-        fbink_ot_cfg.margins.left = l + (BTN_SIZE);
-        fbink_ot_cfg.margins.right = MIN(scw - BTN_SIZE * i - BTN_PAD * i - (BTN_SIZE / 2), scw - BTN_SIZE);
+        fbink_ot_cfg.margins.top    = keys[i]->rect.top + (BTN_SIZE / 4);
+        fbink_ot_cfg.margins.left   = keys[i]->rect.left + (BTN_SIZE / 4);
+        fbink_ot_cfg.margins.right  = scw - (keys[i]->rect.left + keys[i]->rect.width) + (BTN_SIZE / 4);
+        fbink_ot_cfg.margins.bottom = 0;
         printf("%d %d %d\n", fbink_ot_cfg.margins.top, fbink_ot_cfg.margins.left, fbink_ot_cfg.margins.right);
         // fbink_fill_rect_gray(fbink_fd, &fbink_cfg, &keys[i]->rect, 0U, 0x00);
 #if DEBUG
@@ -200,8 +210,8 @@ void I_InitInput(void) {
     // PlaceKeys();
     printf("I_InitInput\n");
     I_GetScreenSize(&scw, &sch);
-    BTN_PAD = (scw / 6) / 10;
-    BTN_SIZE = (scw / 6) - BTN_PAD;
+    BTN_PAD = (scw / 7) / 10;
+    BTN_SIZE = (scw / 7) - BTN_PAD;
 
     CalcKeyPos();
     PlaceKeys();
@@ -255,63 +265,83 @@ void I_InitInput(void) {
 }
 
 void I_GetEvent(void) {
-    event_t event;
-
     if (init_failed) {
         return;
     }
 
-    int poll_num = poll(&pfd, 1, 0); // Doesn't matter if we time out, we can let the game run without inputs
+    int poll_num = poll(&pfd, 1, 0);
+    if (poll_num <= 0) {
+        return;
+    }
+    if (!(pfd.revents & POLLIN)) {
+        return;
+    }
 
-    if (poll_num == -1) {
-        if (errno == EINTR) {
-            return;
+    struct input_event ev;
+    int rc;
+    while ((rc = libevdev_next_event(dev, LIBEVDEV_READ_FLAG_NORMAL, &ev)) >= 0) {
+        // Drain sync-dropped-events state so libevdev stays consistent
+        if (rc == LIBEVDEV_READ_STATUS_SYNC) {
+            while (rc == LIBEVDEV_READ_STATUS_SYNC) {
+                rc = libevdev_next_event(dev, LIBEVDEV_READ_FLAG_SYNC, &ev);
+            }
+            continue;
         }
-        sprintf(stderr, "poll: %m");
-    } else if (poll_num > 0) {
-        if (pfd.revents & POLLIN) {
-            struct input_event ev;
-            while (libevdev_next_event(dev, LIBEVDEV_READ_FLAG_NORMAL, &ev) == 0) {
-                printf("Event: type %d code %d value %d\n", ev.type, ev.code, ev.value);
-                if (ev.type == EV_ABS) {
-                    switch (ev.code) {
-                        case ABS_MT_POSITION_X:
-                            touch_ev.pos.x = ev.value;
-                            break;
-                        case ABS_MT_POSITION_Y:
-                            touch_ev.pos.y = ev.value;
-                            break;
-                        case ABS_MT_PRESSURE:
-                            if (ev.value > 0) {
-                                touch_ev.down = true;
-                            } else {
-                                touch_ev.down = false;
-                            }
-                            break;
-                    }
-                    printf("Touch %s: (%d, %d) \n", touch_ev.down ? "DOWN" : "UP", touch_ev.pos.x, touch_ev.pos.y);
 
-                    for (int i = 0; keys[i] != NULL; i++) {
+        if (ev.type == EV_ABS) {
+            switch (ev.code) {
+                case ABS_MT_POSITION_X:
+                    touch_ev.pos.x = ev.value;
+                    break;
+                case ABS_MT_POSITION_Y:
+                    touch_ev.pos.y = ev.value;
+                    break;
+                case ABS_MT_TRACKING_ID:
+                    // -1 means finger lifted; any other value means finger down
+                    touch_ev.down = (ev.value != -1);
+                    break;
+                case ABS_MT_PRESSURE:
+                    // Fallback for devices that use pressure instead of tracking ID
+                    if (!touch_ev.down && ev.value > 0) touch_ev.down = true;
+                    if (touch_ev.down && ev.value == 0) touch_ev.down = false;
+                    break;
+            }
+        } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
+            // SYN_REPORT marks the end of one complete touch frame.
+            // Only post key events here, not on every individual axis update,
+            // to avoid flooding the Doom event queue.
+            event_t event;
+            for (int i = 0; keys[i] != NULL; i++) {
+                bool in_rect = (
+                    touch_ev.pos.x >= (int)keys[i]->rect.left &&
+                    touch_ev.pos.x <= (int)(keys[i]->rect.left + keys[i]->rect.width) &&
+                    touch_ev.pos.y >= (int)keys[i]->rect.top &&
+                    touch_ev.pos.y <= (int)(keys[i]->rect.top + keys[i]->rect.height)
+                );
+                bool was_in_rect = (
+                    prev_ev.pos.x >= (int)keys[i]->rect.left &&
+                    prev_ev.pos.x <= (int)(keys[i]->rect.left + keys[i]->rect.width) &&
+                    prev_ev.pos.y >= (int)keys[i]->rect.top &&
+                    prev_ev.pos.y <= (int)(keys[i]->rect.top + keys[i]->rect.height)
+                );
 
-                        Coord touch = touch_ev.pos;
+                bool is_pressed  = touch_ev.down && in_rect;
+                bool was_pressed = prev_ev.down  && was_in_rect;
 
-                        if (touch.x >= keys[i]->rect.left && touch.x <= keys[i]->rect.left + keys[i]->rect.width &&
-                            touch.y >= keys[i]->rect.top && touch.y <= keys[i]->rect.top + keys[i]->rect.height) {
-                            printf("Key %d %s\n", keys[i]->key, touch_ev.down ? "DOWN" : "UP");
-                            event.type = touch_ev.down ? ev_keydown : ev_keyup;
-                            event.data1 = keys[i]->key;
-
-                            D_PostEvent(&event);
-                        }
-                    }
-
-                    prev_ev = touch_ev;
-
+                if (is_pressed && !was_pressed) {
+                    printf("Key DOWN: %d\n", keys[i]->key);
+                    event.type  = ev_keydown;
+                    event.data1 = keys[i]->key;
+                    D_PostEvent(&event);
+                } else if (!is_pressed && was_pressed) {
+                    printf("Key UP: %d\n", keys[i]->key);
+                    event.type  = ev_keyup;
+                    event.data1 = keys[i]->key;
+                    D_PostEvent(&event);
                 }
             }
+            prev_ev = touch_ev;
         }
-    } else {
-        return;
     }
 }
 

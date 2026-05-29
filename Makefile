@@ -27,7 +27,7 @@ CC=$(TC)-gcc
 CFLAGS+=-ggdb3 -O2 -I./FBInk -fPIC -Wunused-const-variable=0 -Wall
 LDFLAGS+=-Wl,--gc-sections -L./FBInk/Release/static -L./FBInk/libevdev-staged/lib
 CFLAGS+=-ggdb3 -Wall -DNORMALUNIX -DLINUX
-LIBS+=-lm -lc -lfbink -l:libevdev.a
+LIBS+=-lfbink -l:libevdev.a -lm -lc
 
 # ifneq ($(NOSDL),1)
 # 	LIBS+= -lSDL

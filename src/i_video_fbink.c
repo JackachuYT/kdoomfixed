@@ -165,7 +165,7 @@ void I_InitGraphics(void) {
   printf("Resolution: %d*%d\n", w, h);
 
   // Calculate button area to reserve (matches i_input_evdev.c)
-  int btn_size = w / 6;
+  int btn_size = w / 7;
   int btn_pad  = btn_size / 10;
 
   // Game fills the screen above the buttons
@@ -217,21 +217,10 @@ void I_FinishUpdate(void) {
 #endif
   int ret;
 
-  if (frame == 0 && !norefresh) {
-    // Clear the screen
-    ret = fbink_cls(fbink_fd, &fbink_cfg, &screen_scaled, false);
-    #if DEBUG
-    printf("fbink_cls: %d\n", ret);
-    #endif
-    // Redraw buttons
-    PlaceKeys();
-  }
-
-  // clearing the screen on each frame would technically look better,
-  // but since the refresh rate on the e-ink is so bad,
-  // we can't afford to do that without it looking like hot trash
-  // ret = fbink_cls(fbink_fd, &fbink_cfg, &screenLarger, false);
-  // printf("fbink_cls: %d\n", ret);
+  // Buttons are drawn once at startup (in I_InitGraphics -> I_InitInput -> PlaceKeys).
+  // fbink_print_raw_data only covers game_height rows so it never overwrites the button row.
+  // Do NOT call PlaceKeys or fbink_cls here — each one triggers a slow e-ink refresh
+  // and calling them every ~175 frames caused the game to freeze for several seconds.
 
   // Scale video buffer to fill game area (nearest-neighbor)
   for (int y = 0; y < game_height; y++) {
