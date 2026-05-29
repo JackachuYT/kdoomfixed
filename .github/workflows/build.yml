@@ -18,13 +18,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi make
-          sudo ln -s /usr/bin/arm-linux-gnueabi-gcc    /usr/local/bin/arm-kindlepw2-linux-gnueabi-gcc
-          sudo ln -s /usr/bin/arm-linux-gnueabi-g++    /usr/local/bin/arm-kindlepw2-linux-gnueabi-g++
-          sudo ln -s /usr/bin/arm-linux-gnueabi-ar     /usr/local/bin/arm-kindlepw2-linux-gnueabi-ar
-          sudo ln -s /usr/bin/arm-linux-gnueabi-ld     /usr/local/bin/arm-kindlepw2-linux-gnueabi-ld
-          sudo ln -s /usr/bin/arm-linux-gnueabi-strip  /usr/local/bin/arm-kindlepw2-linux-gnueabi-strip
-          sudo ln -s /usr/bin/arm-linux-gnueabi-ranlib /usr/local/bin/arm-kindlepw2-linux-gnueabi-ranlib
+          sudo ln -s /usr/bin/arm-linux-gnueabi-gcc     /usr/local/bin/arm-kindlepw2-linux-gnueabi-gcc
+          sudo ln -s /usr/bin/arm-linux-gnueabi-gcc     /usr/local/bin/arm-kindlepw2-linux-gnueabi-cc
+          sudo ln -s /usr/bin/arm-linux-gnueabi-g++     /usr/local/bin/arm-kindlepw2-linux-gnueabi-g++
+          sudo ln -s /usr/bin/arm-linux-gnueabi-ar      /usr/local/bin/arm-kindlepw2-linux-gnueabi-ar
+          sudo ln -s /usr/bin/arm-linux-gnueabi-ld      /usr/local/bin/arm-kindlepw2-linux-gnueabi-ld
+          sudo ln -s /usr/bin/arm-linux-gnueabi-strip   /usr/local/bin/arm-kindlepw2-linux-gnueabi-strip
+          sudo ln -s /usr/bin/arm-linux-gnueabi-ranlib  /usr/local/bin/arm-kindlepw2-linux-gnueabi-ranlib
           sudo ln -s /usr/bin/arm-linux-gnueabi-objcopy /usr/local/bin/arm-kindlepw2-linux-gnueabi-objcopy
+          sudo ln -s /usr/bin/arm-linux-gnueabi-nm      /usr/local/bin/arm-kindlepw2-linux-gnueabi-nm
+          sudo ln -s /usr/bin/arm-linux-gnueabi-as      /usr/local/bin/arm-kindlepw2-linux-gnueabi-as
 
       - name: Build
         run: make package
